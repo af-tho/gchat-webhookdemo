@@ -2,9 +2,11 @@
 
 namespace App\Command;
 
+use App\Service\GoogleChatWebhookHelper;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Output\OutputInterface;
 
 #[AsCommand(
@@ -13,21 +15,103 @@ use Symfony\Component\Console\Output\OutputInterface;
     hidden: false,
     aliases: ['app:chat-push']
 )]
+/**
+ * Class ChatPushCommand
+ * @package App\Command
+ * @see https://addons.gsuite.google.com/uikit/builder?hl=de
+ * @see https://developers.google.com/chat/api/guides/message-formats/cards
+ */
 class ChatPushCommand extends Command
 {
+    private GoogleChatWebhookHelper $googleChatWebhookHelper;
     protected static $defaultName = 'chat:push';
+
+    public function __construct(GoogleChatWebhookHelper $googleChatWebhookHelper)
+    {
+        parent::__construct();
+        $this->googleChatWebhookHelper = $googleChatWebhookHelper;
+
+    }
 
     protected function configure(): void
     {
         $this
-            ->setDescription('Sends a message into Google Chat Webhook');
+            ->setDescription('Sends a message into Google Chat Webhook')
+            ->addArgument('text', InputArgument::REQUIRED, 'The message text to send')
+            ->setHelp('This command allows you to send a message to Google Chat Webhook');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $webhookUrl = 'https://chat.googleapis.com/v1/spaces/AAQA7yLNoiY/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=9Xj_Pz0ioQBJWIzHRhgxWDnuWCgREHo5a5YY5mWiP0k';
+        $messageText = $input->getArgument('text');
+        $webhookUrl = $this->googleChatWebhookHelper->getWebhookUrl();
+        if (empty($webhookUrl)) {
+            $output->writeln('<error>Webhook URL is not set.</error>');
+            return Command::FAILURE;
+        }
+        
         $message = [
-            'text' => 'Hey from my custom Symfony Console 🎉 App, now testing a link https://symfony.com/doc/current/console.html#console_registering-the-command',
+            #'text' => $messageText,
+            'cards' =>  [
+                [       
+                    "header" => [
+                        "title" => "*CARD header title*",
+                        "subtitle" => "CARD header subtitle",
+                        "imageUrl" => "https://netz-giraffe.de/wp-content/uploads/2023/05/netzgiraffe-im-buro.jpg"
+                    ],
+                    "sections" => [
+                        [
+                            "widgets" => [
+                                [
+                                    "keyValue"=> [
+                                        "topLabel" => "Status",
+                                        "content" => "✅ Abgeschlossen"
+                                    ],
+                                ],
+                                [
+                                    "textParagraph" => [
+                                        "text" => $messageText
+                                    ],
+                                ],
+                                [
+                                    "buttons" => [
+                                        "textButton"=> [
+                                            "text" => "OPEN",
+                                            "onClick"=> [
+                                                "openLink"=> [
+                                                    "url" => "https://media.mercedes-benz.com/"
+                                                ]
+                                            ]
+                                        ],
+                                        "textButton"=> [
+                                            "text" => "DO NOT OPEN",
+                                            "onClick"=> [
+                                                "openLink"=> [
+                                                    "url" => "https://media.mercedes-benz.com/"
+                                                ]
+                                            ]
+                                        ]
+                                    ]
+                                ]
+                            ]
+                        ]
+                    ],
+                    "cardActions"=> [
+                        "actionLabel"=> "card ACTION",
+                        "onClick"=> [
+                            "action"=> [
+                                "actionMethodName" => "ACTION_METHOD_NAME",
+                                "parameters" => [
+                                    "key" => "value"
+                                ]
+                                ],
+                            "openLink"=> [
+                                "url" => "https://media.mercedes-benz.com/"
+                            ]
+                        ]
+                    ]
+                ]
+            ]
         ];
 
         $ch = curl_init($webhookUrl);
